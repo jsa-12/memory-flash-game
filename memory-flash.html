@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Memory Flash</title>
+  <style>
+    :root {
+      --bg-primary: #090b10;
+      --bg-secondary: rgba(20, 24, 34, 0.82);
+      --border: rgba(255, 255, 255, 0.08);
+      --text-primary: #f5f7fb;
+      --text-secondary: #9ea7b8;
+      --button-bg: #f5f7fb;
+      --button-text: #111827;
+      --shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+      --red: #ff4d5f;
+      --blue: #4d8dff;
+      --green: #34d399;
+      --yellow: #facc15;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background:
+        radial-gradient(circle at top, rgba(77, 141, 255, 0.14), transparent 35%),
+        radial-gradient(circle at bottom, rgba(255, 77, 95, 0.12), transparent 30%),
+        linear-gradient(160deg, #05070b 0%, #0b1020 55%, #06070c 100%);
+      color: var(--text-primary);
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    .game-shell {
+      width: min(100%, 460px);
+      padding: 40px 32px 32px;
+      border: 1px solid var(--border);
+      border-radius: 28px;
+      background: var(--bg-secondary);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(18px);
+      text-align: center;
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: clamp(2.4rem, 5vw, 3.2rem);
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+
+    .instructions {
+      margin: 0 0 28px;
+      color: var(--text-secondary);
+      font-size: 1rem;
+    }
+
+    .score-row {
+      margin: 0 0 22px;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .score-card {
+      padding: 12px 14px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.03);
+      color: #d7dcea;
+      font-size: 0.95rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .tile-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(120px, 1fr));
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+
+    .tile {
+      border: none;
+      border-radius: 24px;
+      aspect-ratio: 1 / 1;
+      cursor: pointer;
+      position: relative;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 16px 30px rgba(0, 0, 0, 0.2);
+      transition: transform 0.22s ease, box-shadow 0.22s ease, filter 0.22s ease, opacity 0.22s ease;
+    }
+
+    .tile::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: rgba(255, 255, 255, 0.16);
+      opacity: 0;
+      transition: opacity 0.2s ease;
+      pointer-events: none;
+    }
+
+    .tile:hover {
+      transform: translateY(-4px) scale(1.02);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 22px 36px rgba(0, 0, 0, 0.28);
+      filter: brightness(1.08);
+    }
+
+    .tile:active,
+    .tile.active {
+      transform: scale(0.98);
+      filter: brightness(1.2);
+    }
+
+    .tile.active,
+    .tile.flash {
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.32),
+        0 0 0 1px rgba(255, 255, 255, 0.16),
+        0 0 28px rgba(255, 255, 255, 0.22),
+        0 24px 46px rgba(0, 0, 0, 0.28);
+      filter: brightness(1.28) saturate(1.08);
+    }
+
+    .tile.active::after,
+    .tile.flash::after {
+      opacity: 1;
+    }
+
+    .tile.flash {
+      animation: tileFlash 0.5s ease;
+    }
+
+    .tile:disabled {
+      cursor: default;
+    }
+
+    .tile.red {
+      background: linear-gradient(145deg, #ff6b7a, var(--red));
+    }
+
+    .tile.blue {
+      background: linear-gradient(145deg, #79a9ff, var(--blue));
+    }
+
+    .tile.green {
+      background: linear-gradient(145deg, #64efba, var(--green));
+    }
+
+    .tile.yellow {
+      background: linear-gradient(145deg, #fde047, var(--yellow));
+    }
+
+    .start-button {
+      width: 100%;
+      padding: 14px 20px;
+      border: none;
+      border-radius: 999px;
+      background: var(--button-bg);
+      color: var(--button-text);
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 0.22s ease, box-shadow 0.22s ease, background-color 0.22s ease;
+      box-shadow: 0 14px 26px rgba(245, 247, 251, 0.14);
+    }
+
+    .start-button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 18px 30px rgba(245, 247, 251, 0.18);
+      background: #ffffff;
+    }
+
+    .start-button:active {
+      transform: translateY(0);
+    }
+
+    .controls {
+      display: grid;
+      gap: 12px;
+    }
+
+    .mute-button {
+      width: 100%;
+      padding: 12px 18px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.04);
+      color: #dbe3f2;
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 0.22s ease, border-color 0.22s ease, background-color 0.22s ease;
+    }
+
+    .mute-button:hover {
+      transform: translateY(-2px);
+      border-color: rgba(255, 255, 255, 0.2);
+      background: rgba(255, 255, 255, 0.07);
+    }
+
+    .mute-button:active {
+      transform: translateY(0);
+    }
+
+    .status {
+      min-height: 86px;
+      margin: 0 0 22px;
+      display: grid;
+      place-items: center;
+      padding: 16px 18px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 22px;
+      background: rgba(255, 255, 255, 0.03);
+      color: #e2e8f0;
+      font-size: clamp(1.15rem, 2.8vw, 1.5rem);
+      font-weight: 800;
+      letter-spacing: 0.01em;
+      line-height: 1.3;
+      transition: color 0.22s ease, border-color 0.22s ease, background-color 0.22s ease, transform 0.22s ease;
+      transform-origin: center;
+    }
+
+    .status-main,
+    .status-sub {
+      display: block;
+    }
+
+    .status-main {
+      font-size: inherit;
+    }
+
+    .status-sub {
+      margin-top: 6px;
+      font-size: 0.8em;
+      font-weight: 700;
+      opacity: 0.92;
+    }
+
+    .status.ready {
+      color: #f8fafc;
+      border-color: rgba(255, 255, 255, 0.12);
+    }
+
+    .status.success {
+      color: #86efac;
+      border-color: rgba(52, 211, 153, 0.28);
+      background: rgba(52, 211, 153, 0.08);
+    }
+
+    .status.error {
+      color: #ff9aa8;
+      border-color: rgba(255, 77, 95, 0.28);
+      background: rgba(255, 77, 95, 0.08);
+    }
+
+    .status.pop {
+      animation: statusPop 0.34s ease;
+    }
+
+    @keyframes tileFlash {
+      0% {
+        transform: scale(1);
+        filter: brightness(1);
+      }
+      45% {
+        transform: scale(1.04);
+        filter: brightness(1.34) saturate(1.1);
+      }
+      100% {
+        transform: scale(1);
+        filter: brightness(1.05);
+      }
+    }
+
+    @keyframes statusPop {
+      0% {
+        opacity: 0.65;
+        transform: scale(0.97);
+      }
+      60% {
+        opacity: 1;
+        transform: scale(1.02);
+      }
+      100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    @media (max-width: 480px) {
+      .game-shell {
+        padding: 32px 20px 24px;
+      }
+
+      .score-row {
+        grid-template-columns: 1fr;
+      }
+
+      .tile-grid {
+        gap: 12px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="game-shell">
+    <h1>Memory Flash</h1>
+    <p class="instructions">Watch the sequence and repeat it</p>
+    <div class="score-row">
+      <p class="score-card" id="levelDisplay">Level 0</p>
+      <p class="score-card" id="bestDisplay">Best: Level 0</p>
+    </div>
+
+    <section class="tile-grid" aria-label="Memory tiles">
+      <button class="tile red" data-color="red" aria-label="Red tile"></button>
+      <button class="tile blue" data-color="blue" aria-label="Blue tile"></button>
+      <button class="tile green" data-color="green" aria-label="Green tile"></button>
+      <button class="tile yellow" data-color="yellow" aria-label="Yellow tile"></button>
+    </section>
+
+    <p class="status" id="statusText">Press start to begin.</p>
+    <div class="controls">
+      <button class="start-button" id="startButton">Start Game</button>
+      <button class="mute-button" id="muteButton" type="button">Mute Music</button>
+    </div>
+  </main>
+
+  <script>
+    const startButton = document.getElementById("startButton");
+    const muteButton = document.getElementById("muteButton");
+    const statusText = document.getElementById("statusText");
+    const levelDisplay = document.getElementById("levelDisplay");
+    const bestDisplay = document.getElementById("bestDisplay");
+    const tiles = [...document.querySelectorAll(".tile")];
+    const colors = ["red", "blue", "green", "yellow"];
+    const colorTones = {
+      red: 261.63,
+      blue: 329.63,
+      green: 392.0,
+      yellow: 523.25
+    };
+    const flashDuration = 500;
+    const pauseDuration = 220;
+    const bestScoreKey = "memory-flash-best-level";
+    const musicBaseVolume = 0.26;
+    const musicDuckedVolume = 0.12;
+    const ambientTracks = [
+      {
+        segmentLength: 8,
+        progression: [
+          [261.63, 329.63, 392.0],
+          [220.0, 261.63, 329.63],
+          [293.66, 369.99, 440.0],
+          [246.94, 329.63, 392.0],
+          [196.0, 246.94, 329.63],
+          [220.0, 277.18, 349.23],
+          [174.61, 261.63, 392.0],
+          [233.08, 293.66, 349.23],
+          [261.63, 329.63, 392.0],
+          [220.0, 293.66, 369.99],
+          [196.0, 246.94, 329.63],
+          [246.94, 329.63, 392.0]
+        ]
+      },
+      {
+        segmentLength: 8,
+        progression: [
+          [293.66, 369.99, 440.0],
+          [261.63, 329.63, 392.0],
+          [220.0, 293.66, 349.23],
+          [246.94, 311.13, 392.0],
+          [329.63, 392.0, 493.88],
+          [277.18, 349.23, 415.3],
+          [233.08, 293.66, 369.99],
+          [261.63, 329.63, 392.0],
+          [196.0, 246.94, 329.63],
+          [220.0, 277.18, 349.23],
+          [246.94, 329.63, 392.0],
+          [261.63, 349.23, 440.0]
+        ]
+      },
+      {
+        segmentLength: 8,
+        progression: [
+          [220.0, 261.63, 329.63],
+          [174.61, 233.08, 349.23],
+          [196.0, 246.94, 293.66],
+          [246.94, 311.13, 369.99],
+          [261.63, 329.63, 392.0],
+          [233.08, 293.66, 369.99],
+          [185.0, 246.94, 329.63],
+          [220.0, 277.18, 349.23],
+          [293.66, 369.99, 440.0],
+          [246.94, 329.63, 392.0],
+          [196.0, 261.63, 329.63],
+          [220.0, 293.66, 349.23]
+        ]
+      }
+    ];
+
+    let sequence = [];
+    let playerIndex = 0;
+    let level = 0;
+    let bestLevel = getStoredBestLevel();
+    let acceptingInput = false;
+    let gameToken = 0;
+    let audioContext;
+    let musicGainNode;
+    let musicStarted = false;
+    let musicMuted = false;
+    let musicLoopTimer;
+    let activeAmbientTrack = ambientTracks[0];
+
+    function getAudioContext() {
+      if (!audioContext) {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+
+        if (!AudioContextClass) {
+          return null;
+        }
+
+        audioContext = new AudioContextClass();
+      }
+
+      if (audioContext.state === "suspended") {
+        audioContext.resume();
+      }
+
+      return audioContext;
+    }
+
+    function getMusicGainNode() {
+      const context = getAudioContext();
+      if (!context) {
+        return null;
+      }
+
+      if (!musicGainNode) {
+        musicGainNode = context.createGain();
+        musicGainNode.gain.value = musicMuted ? 0 : musicBaseVolume;
+        musicGainNode.connect(context.destination);
+      }
+
+      return musicGainNode;
+    }
+
+    function duckMusic(duration = 0.18) {
+      if (musicMuted || !musicGainNode) {
+        return;
+      }
+
+      const context = getAudioContext();
+      const now = context.currentTime;
+
+      musicGainNode.gain.cancelScheduledValues(now);
+      musicGainNode.gain.setValueAtTime(musicGainNode.gain.value, now);
+      musicGainNode.gain.linearRampToValueAtTime(musicDuckedVolume, now + 0.03);
+      musicGainNode.gain.linearRampToValueAtTime(musicBaseVolume, now + duration);
+    }
+
+    function playTone(frequency, duration, volume, type = "sine", startOffset = 0) {
+      const context = getAudioContext();
+      if (!context) {
+        return;
+      }
+
+      const oscillator = context.createOscillator();
+      const gainNode = context.createGain();
+      const startTime = context.currentTime + startOffset;
+      const attackTime = 0.01;
+      const endTime = startTime + duration;
+
+      oscillator.type = type;
+      oscillator.frequency.setValueAtTime(frequency, startTime);
+
+      gainNode.gain.setValueAtTime(0.0001, startTime);
+      gainNode.gain.exponentialRampToValueAtTime(volume, startTime + attackTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.0001, endTime);
+
+      oscillator.connect(gainNode);
+      gainNode.connect(context.destination);
+      oscillator.start(startTime);
+      oscillator.stop(endTime + 0.02);
+    }
+
+    function playFlashSound(color) {
+      duckMusic(0.24);
+      playTone(colorTones[color] ?? 320, 0.16, 0.48, "sine");
+    }
+
+    function playClickSound(color) {
+      duckMusic(0.16);
+      playTone((colorTones[color] ?? 320) * 1.08, 0.1, 0.7, "triangle");
+    }
+
+    function playGameOverSound() {
+      duckMusic(0.45);
+      playTone(392.0, 0.16, 0.4, "sawtooth", 0);
+      playTone(311.13, 0.18, 0.34, "sawtooth", 0.12);
+      playTone(220.0, 0.24, 0.28, "sawtooth", 0.27);
+    }
+
+    function playMusicTone(frequency, duration, volume, type = "sine", startOffset = 0) {
+      const context = getAudioContext();
+      const gainNode = getMusicGainNode();
+
+      if (!context || !gainNode) {
+        return;
+      }
+
+      const oscillator = context.createOscillator();
+      const noteGain = context.createGain();
+      const startTime = context.currentTime + startOffset;
+      const endTime = startTime + duration;
+
+      oscillator.type = type;
+      oscillator.frequency.setValueAtTime(frequency, startTime);
+
+      noteGain.gain.setValueAtTime(0.0001, startTime);
+      noteGain.gain.exponentialRampToValueAtTime(volume, startTime + 0.2);
+      noteGain.gain.exponentialRampToValueAtTime(0.0001, endTime);
+
+      oscillator.connect(noteGain);
+      noteGain.connect(gainNode);
+      oscillator.start(startTime);
+      oscillator.stop(endTime + 0.05);
+    }
+
+    function getRandomAmbientTrack() {
+      return ambientTracks[Math.floor(Math.random() * ambientTracks.length)];
+    }
+
+    function scheduleMusicLoop(track = activeAmbientTrack) {
+      const segmentLength = track.segmentLength;
+
+      track.progression.forEach((chord, index) => {
+        const offset = index * segmentLength;
+        playMusicTone(chord[0], 6.6, 0.034, "sine", offset);
+        playMusicTone(chord[1], 5.8, 0.024, "triangle", offset + 0.45);
+        playMusicTone(chord[2], 5.2, 0.02, "sine", offset + 1.1);
+
+        playMusicTone(chord[0] / 2, 4.6, 0.016, "triangle", offset + 2.1);
+        playMusicTone(chord[1] * 2, 1.2, 0.01, "sine", offset + 3.25);
+        playMusicTone(chord[2] * 2, 1.1, 0.009, "sine", offset + 5.05);
+      });
+    }
+
+    function getAmbientLoopDuration(track = activeAmbientTrack) {
+      return track.progression.length * track.segmentLength * 1000;
+    }
+
+    function startBackgroundMusic(forceRestart = false) {
+      getAudioContext();
+      getMusicGainNode();
+
+      if (musicStarted && !forceRestart) {
+        return;
+      }
+
+      activeAmbientTrack = getRandomAmbientTrack();
+
+      if (musicLoopTimer) {
+        window.clearInterval(musicLoopTimer);
+      }
+
+      musicStarted = true;
+      scheduleMusicLoop(activeAmbientTrack);
+      musicLoopTimer = window.setInterval(() => {
+        scheduleMusicLoop(activeAmbientTrack);
+      }, getAmbientLoopDuration(activeAmbientTrack));
+    }
+
+    function updateMuteButton() {
+      muteButton.textContent = musicMuted ? "Unmute Music" : "Mute Music";
+    }
+
+    function toggleMusicMute() {
+      musicMuted = !musicMuted;
+
+      if (musicGainNode) {
+        const context = getAudioContext();
+        const targetVolume = musicMuted ? 0 : musicBaseVolume;
+        musicGainNode.gain.cancelScheduledValues(context.currentTime);
+        musicGainNode.gain.setTargetAtTime(targetVolume, context.currentTime, 0.08);
+      }
+
+      updateMuteButton();
+    }
+
+    function sleep(ms) {
+      return new Promise((resolve) => window.setTimeout(resolve, ms));
+    }
+
+    function getRandomColor() {
+      return colors[Math.floor(Math.random() * colors.length)];
+    }
+
+    function generateSequenceForLevel(currentLevel) {
+      return Array.from({ length: currentLevel + 1 }, () => {
+        return colors[Math.floor(Math.random() * colors.length)];
+      });
+    }
+
+    function updateLevelDisplay() {
+      levelDisplay.textContent = `Level ${level}`;
+    }
+
+    function updateBestDisplay() {
+      bestDisplay.textContent = `Best: Level ${bestLevel}`;
+    }
+
+    function getStoredBestLevel() {
+      const storedValue = window.localStorage.getItem(bestScoreKey);
+      const parsedValue = Number.parseInt(storedValue ?? "0", 10);
+
+      if (Number.isNaN(parsedValue) || parsedValue < 0) {
+        return 0;
+      }
+
+      return parsedValue;
+    }
+
+    function saveBestLevel() {
+      window.localStorage.setItem(bestScoreKey, String(bestLevel));
+    }
+
+    function setStatus(message, type = "default", detail = "") {
+      const mainText = `<span class="status-main">${message}</span>`;
+      const detailText = detail ? `<span class="status-sub">${detail}</span>` : "";
+
+      statusText.innerHTML = `${mainText}${detailText}`;
+      statusText.classList.remove("ready", "success", "error", "pop");
+
+      if (type === "ready") {
+        statusText.classList.add("ready");
+      }
+
+      if (type === "success") {
+        statusText.classList.add("success");
+      }
+
+      if (type === "error") {
+        statusText.classList.add("error");
+      }
+
+      void statusText.offsetWidth;
+      statusText.classList.add("pop");
+    }
+
+    function setTilesEnabled(enabled) {
+      tiles.forEach((tile) => {
+        tile.disabled = !enabled;
+      });
+    }
+
+    function clearTileStates() {
+      tiles.forEach((tile) => {
+        tile.classList.remove("active", "flash");
+      });
+    }
+
+    function updateBestLevelIfNeeded() {
+      if (level > bestLevel) {
+        bestLevel = level;
+        saveBestLevel();
+        updateBestDisplay();
+        return true;
+      }
+
+      return false;
+    }
+
+    async function flashTile(color, token) {
+      const tile = tiles.find((item) => item.dataset.color === color);
+      if (!tile || token !== gameToken) {
+        return;
+      }
+
+      playFlashSound(color);
+      tile.classList.remove("flash");
+      void tile.offsetWidth;
+      tile.classList.add("flash");
+      await sleep(flashDuration);
+      tile.classList.remove("flash");
+    }
+
+    async function playSequence(token) {
+      acceptingInput = false;
+      setTilesEnabled(false);
+      setStatus("Watch closely...", "default");
+      await sleep(450);
+
+      for (const color of sequence) {
+        if (token !== gameToken) {
+          return;
+        }
+
+        await flashTile(color, token);
+        await sleep(pauseDuration);
+      }
+
+      if (token !== gameToken) {
+        return;
+      }
+
+      playerIndex = 0;
+      acceptingInput = true;
+      setTilesEnabled(true);
+      setStatus("Your turn!", "ready");
+    }
+
+    async function nextLevel() {
+      level += 1;
+      sequence = generateSequenceForLevel(level);
+      updateLevelDisplay();
+      setStatus("Watch carefully...", "ready");
+      await sleep(700);
+      await playSequence(gameToken);
+    }
+
+    async function startGame() {
+      getAudioContext();
+      startBackgroundMusic(true);
+      gameToken += 1;
+      sequence = [];
+      playerIndex = 0;
+      level = 0;
+      acceptingInput = false;
+      clearTileStates();
+      setTilesEnabled(false);
+      updateLevelDisplay();
+      startButton.textContent = "Restart Game";
+      setStatus("Get ready...", "ready");
+      await sleep(400);
+      await nextLevel();
+    }
+
+    function endGame() {
+      acceptingInput = false;
+      setTilesEnabled(false);
+      playGameOverSound();
+      const isNewHighScore = updateBestLevelIfNeeded();
+      const detail = isNewHighScore
+        ? `Best: Level ${bestLevel}<br>New High Score! 🎉`
+        : `Best: Level ${bestLevel}`;
+
+      setStatus(
+        `Game Over! You reached Level ${level}`,
+        "error",
+        detail
+      );
+    }
+
+    startButton.addEventListener("click", () => {
+      startGame();
+    });
+
+    muteButton.addEventListener("click", () => {
+      toggleMusicMute();
+    });
+
+    tiles.forEach((tile) => {
+      tile.addEventListener("click", async () => {
+        if (!acceptingInput) {
+          return;
+        }
+
+        const selectedColor = tile.dataset.color;
+        playClickSound(selectedColor);
+        tile.classList.add("active");
+        window.setTimeout(() => tile.classList.remove("active"), 180);
+
+        if (selectedColor !== sequence[playerIndex]) {
+          endGame();
+          return;
+        }
+
+        playerIndex += 1;
+
+        if (playerIndex === sequence.length) {
+          acceptingInput = false;
+          setTilesEnabled(false);
+          setStatus("Correct!", "success");
+          await sleep(800);
+          await nextLevel();
+        }
+      });
+    });
+
+    setTilesEnabled(false);
+    updateLevelDisplay();
+    updateBestDisplay();
+    updateMuteButton();
+  </script>
+</body>
+</html>
